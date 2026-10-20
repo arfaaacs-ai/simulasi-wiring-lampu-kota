@@ -1,0 +1,1071 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
+/* Mobile/touch enhancements: keep the full simulator and improve touch targets. */
+.boardwrap{
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+  touch-action:pan-x pan-y;
+}
+.tools{gap:8px}
+button,.btn,.sw,.ci{ -webkit-tap-highlight-color:transparent; }
+@media (pointer:coarse){
+  .btn{min-height:42px;padding:9px 12px}
+  .seg button{min-height:42px;padding:9px 14px}
+  .sw{min-height:42px;padding:7px 10px}
+  .tog{min-height:42px}
+  .ci{min-height:42px;padding-top:8px;padding-bottom:8px}
+  /* Larger invisible touch targets around SVG terminals and wires. */
+  .board .term .hit{r:19px}
+  .board .w-hit{stroke-width:22}
+}
+@media (max-width:620px){
+  .page{padding-left:10px;padding-right:10px;padding-top:12px}
+  .hd{padding-bottom:12px}
+  .lead{font-size:15px}
+  .tools{padding:9px;gap:7px}
+  .tools .btn{font-size:13px;padding-left:9px;padding-right:9px}
+  .boardwrap{border-top:1px solid var(--line)}
+  .status{padding:10px}
+  .card.pad{padding:12px}
+}
+
+</style></head><body>
+<title>Simulasi Wiring Lampu Kota</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: papan wiring lebar di kiri, kolom daftar sambungan / multimeter / gangguan di kanan; menumpuk di bawah 1040px */
+:root{
+  --bg:#eceff1; --panel:#ffffff; --panel-2:#f3f6f7; --ink:#15212a; --ink-2:#4b5b67; --line:#d2d9de;
+  --accent:#0b6e7f; --accent-ink:#ffffff; --accent-soft:#d9eef2;
+  --ok:#1b8049; --warn:#a85f00; --bad:#c23a2e;
+  --board:#fbfcfc; --grid:#e5eaed; --comp:#35444f; --comp-fill:#e8edf0;
+  --wire-edge:#26313a; --flow:#00a1c2;
+  --lamp-on:#ffd43b; --lamp-glow:#ffa800;
+  --lcd-bg:#d6e6d2; --lcd-ink:#12301c;
+  --font-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --font-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1318; --panel:#151d24; --panel-2:#1b252d; --ink:#e7eef3; --ink-2:#9db0bc; --line:#2a3742;
+    --accent:#4cc6d9; --accent-ink:#06222a; --accent-soft:#12323a;
+    --ok:#4cc98a; --warn:#f0a53a; --bad:#ff7a6d;
+    --board:#10181e; --grid:#1a252d; --comp:#a9bac6; --comp-fill:#1d2933;
+    --wire-edge:#8ea3b1; --flow:#6fe6ff;
+    --lamp-on:#ffe27a; --lamp-glow:#ffc233;
+    --lcd-bg:#17261d; --lcd-ink:#8df0ae;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1318; --panel:#151d24; --panel-2:#1b252d; --ink:#e7eef3; --ink-2:#9db0bc; --line:#2a3742;
+  --accent:#4cc6d9; --accent-ink:#06222a; --accent-soft:#12323a;
+  --ok:#4cc98a; --warn:#f0a53a; --bad:#ff7a6d;
+  --board:#10181e; --grid:#1a252d; --comp:#a9bac6; --comp-fill:#1d2933;
+  --wire-edge:#8ea3b1; --flow:#6fe6ff;
+  --lamp-on:#ffe27a; --lamp-glow:#ffc233;
+  --lcd-bg:#17261d; --lcd-ink:#8df0ae;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.5}
+.page{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+h1,h2,h3{font-family:var(--font-display);margin:0;text-wrap:balance}
+.hd{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 24px;padding-bottom:16px}
+.eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2)}
+h1{font-weight:700;font-size:clamp(32px,5.4vw,50px);line-height:1;margin-top:6px;letter-spacing:.005em}
+.lead{max-width:62ch;color:var(--ink-2);margin:8px 0 0;font-size:16px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:1040px){.grid{grid-template-columns:minmax(0,1fr) 340px;align-items:start}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
+.pad{padding:14px 16px}
+h2{font-weight:600;font-size:21px;letter-spacing:.01em;margin-bottom:6px}
+.hint{color:var(--ink-2);font-size:13.5px;margin:0 0 10px}
+.stage{position:relative;overflow:hidden}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.tools.second{background:var(--panel-2)}
+.spacer{flex:1 1 8px}
+.btn{font:500 14px var(--font-body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer;min-height:36px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.btn.danger{color:var(--bad)}
+.btn.wide{width:100%;justify-content:center}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:500 14px var(--font-body);background:var(--panel);color:var(--ink);border:0;padding:7px 14px;min-height:36px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.tog{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);cursor:pointer;min-height:36px}
+.tog input{width:17px;height:17px;accent-color:var(--accent)}
+.lbl{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.sw{display:inline-flex;align-items:center;gap:7px;font:600 13px var(--font-mono);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 9px;min-height:36px;cursor:pointer}
+.sw svg{display:block}
+.sw .nm{font:400 12px var(--font-body);color:var(--ink-2)}
+.sw[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent) inset}
+@media (max-width:620px){.sw .nm{display:none}}
+.status{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid var(--line);min-height:58px}
+.status .sd{flex:none;width:11px;height:11px;border-radius:50%;margin-top:6px;background:var(--ink-2)}
+.status.ok .sd{background:var(--ok)}.status.warn .sd{background:var(--warn)}.status.bad .sd{background:var(--bad)}.status.info .sd{background:var(--accent)}
+.status p{margin:0;flex:1;min-width:0}
+.status .btn{min-height:30px;padding:3px 10px;font-size:13px}
+.toast{position:absolute;right:12px;top:12px;max-width:min(360px,calc(100% - 24px));background:var(--ink);color:var(--bg);border-radius:8px;padding:9px 13px;font-size:14px;z-index:5;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.toast.ok{background:var(--ok);color:#fff}.toast.bad{background:var(--bad);color:#fff}.toast.warn{background:var(--warn);color:#fff}
+.boardwrap{overflow-x:auto;background:var(--board)}
+.board{display:block;width:100%;min-width:690px;height:auto;user-select:none;-webkit-user-select:none}
+.w-edge{fill:none;stroke:var(--wire-edge);stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+.board .gridline{fill:none;stroke:var(--grid);stroke-width:1}
+.board .body{fill:var(--comp-fill);stroke:var(--comp);stroke-width:1.8}
+.board .ln{fill:none;stroke:var(--comp);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.board .dash{fill:none;stroke:var(--comp);stroke-width:1.4;stroke-dasharray:5 4}
+.board .bus{stroke:var(--comp);stroke-width:6;stroke-linecap:round}
+.board .t{fill:var(--ink);font-family:var(--font-mono);font-size:10px}
+.board .t2{fill:var(--ink-2);font-family:var(--font-mono);font-size:9px}
+.board .tb{font-weight:600}
+.board .ttl{fill:var(--ink);font-family:var(--font-display);font-weight:700;font-size:26px}
+.board .click{fill:var(--accent);fill-opacity:0;cursor:pointer}
+.board .click:hover{fill-opacity:.13}
+.board .click:focus-visible{outline:none;stroke:var(--accent);stroke-width:2}
+.board .el{fill:none;stroke:var(--comp);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.board .el.bad{stroke:var(--bad)}
+.board .tagbad{fill:var(--bad);font-family:var(--font-mono);font-size:10px;font-weight:600}
+.board .segbox{fill:var(--panel);stroke:var(--comp);stroke-width:1.8}
+.board .seg0{fill:transparent;stroke:none}
+.board .segon{fill:var(--accent)}
+.board .segtxt{font-family:var(--font-mono);font-size:12px;font-weight:600;fill:var(--ink);text-anchor:middle;pointer-events:none}
+.board .segtxt.on{fill:var(--accent-ink)}
+.board .conn{fill:var(--comp-fill);stroke:var(--comp);stroke-width:1.6}
+.board .conn.off{stroke:var(--bad)}
+.board .cal{fill:var(--accent);fill-opacity:.9}
+.board .bulb{fill:var(--panel);stroke:var(--comp);stroke-width:1.8;transition:fill .15s}
+.board .fil{fill:none;stroke:var(--comp);stroke-width:1.6;stroke-linecap:round}
+.board .halo{fill:var(--lamp-glow);opacity:.26}
+.board .lamp.on .bulb{fill:var(--lamp-on);stroke:var(--lamp-glow);filter:drop-shadow(0 0 7px var(--lamp-glow))}
+.board .lamp.on .fil{stroke:var(--lamp-glow)}
+.board .w-hit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}
+.board .w-halo{fill:none;stroke:var(--accent);stroke-width:13;stroke-opacity:.35;stroke-linecap:round;stroke-linejoin:round}
+.board .w-flow{fill:none;stroke:var(--flow);stroke-width:2.6;stroke-linecap:round;stroke-dasharray:1 11;animation:flow .7s linear infinite;pointer-events:none}
+@keyframes flow{to{stroke-dashoffset:-12}}
+.board .chip rect{fill:var(--board);stroke:var(--comp);stroke-width:1}
+.board .chip text{font-family:var(--font-mono);font-size:9.5px;font-weight:600;fill:var(--ink);text-anchor:middle;dominant-baseline:central}
+.board .wire .chip{pointer-events:none}
+.board .ghost path{fill:none;stroke:var(--accent);stroke-width:2.4;stroke-dasharray:6 6;stroke-opacity:.55;stroke-linecap:round;stroke-linejoin:round}
+.board .ghost .chip rect{stroke:var(--accent)}
+.board .ghost .chip text{fill:var(--accent)}
+.board .ghost.hot path{stroke-opacity:1;stroke-width:3.2}
+.board .prev{fill:none;stroke-width:3;stroke-dasharray:3 5;stroke-linecap:round;pointer-events:none}
+.board .term{cursor:crosshair;touch-action:none;outline:none}
+.board .term .hit{fill:transparent}
+.board .term .dot{fill:var(--board);stroke:var(--comp);stroke-width:2.2}
+.board .term .ring{fill:none;stroke:var(--accent);stroke-width:2;opacity:0}
+.board .term.used .dot{fill:var(--comp)}
+.board .term:hover .dot,.board .term:focus-visible .dot{stroke:var(--accent);stroke-width:3}
+.board .term.pending .dot{fill:var(--accent);stroke:var(--accent)}
+.board .term.pending .ring,.board .term:focus-visible .ring{opacity:1}
+.board .term.hint .ring{opacity:1;animation:pulse .9s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.15;stroke-width:4}}
+.mm .board .term{cursor:pointer}
+.board .badge rect{fill:var(--lcd-bg);stroke:var(--comp);stroke-width:1}
+.board .badge text{fill:var(--lcd-ink);font-family:var(--font-mono);font-size:12px;font-weight:600;text-anchor:middle;dominant-baseline:central}
+@media (prefers-reduced-motion:reduce){.board .w-flow{animation:none;stroke-dasharray:none;stroke-opacity:.8}.board .term.hint .ring{animation:none}}
+/* sidebar */
+.side{display:grid;gap:16px;min-width:0}
+.prog{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.prog .num{font:700 38px/1 var(--font-display);color:var(--accent)}
+.prog span:last-child{color:var(--ink-2);font-size:14px}
+.score{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:var(--panel-2)}
+.score b{font:700 34px/1 var(--font-display)}
+.score.good b{color:var(--ok)}.score.mid b{color:var(--warn)}.score.low b{color:var(--bad)}
+.score p{margin:6px 0 0;font-size:13.5px;color:var(--ink-2)}
+.gh{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin:12px 0 4px}
+.cl{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.ci{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:center;width:100%;text-align:left;font:400 13.5px var(--font-body);color:var(--ink);background:transparent;border:0;border-radius:6px;padding:5px 6px;cursor:pointer}
+.ci:hover{background:var(--panel-2)}
+.ci .mk{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font:700 11px var(--font-mono);color:var(--panel)}
+.ci.s-ok .mk{background:var(--ok);border-color:var(--ok)}
+.ci.s-color .mk{background:var(--warn);border-color:var(--warn)}
+.ci .cc{font:600 11.5px var(--font-mono);color:var(--ink-2)}
+.ci .xt{display:block;font-size:12px;color:var(--warn)}
+.extra{margin:10px 0 0;font-size:13.5px;color:var(--bad)}
+.lcd{background:var(--lcd-bg);color:var(--lcd-ink);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-family:var(--font-mono);display:flex;align-items:baseline;gap:8px;min-height:64px}
+.lcd .v{font-size:34px;font-weight:600;letter-spacing:.02em}
+.lcd .u{font-size:13px;opacity:.8}
+.lcd.idle{opacity:.55}
+.mmcap{margin:8px 0 0;font-size:13.5px;color:var(--ink-2);min-height:40px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+@media (max-width:420px){.fgrid{grid-template-columns:1fr}}
+details.card summary{cursor:pointer;font:600 21px var(--font-display);letter-spacing:.01em}
+details.card[open] summary{margin-bottom:8px}
+/* theory */
+.theory{margin-top:16px;display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:860px){.theory{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}}
+.flow{list-style:none;counter-reset:s;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.flow li{counter-increment:s;display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start}
+.flow li::before{content:counter(s);font:600 13px var(--font-mono);display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent)}
+.flow b{font-weight:600}
+.theory p{margin:8px 0 0;color:var(--ink-2)}
+.theory ul{margin:8px 0 0;padding-left:18px;color:var(--ink-2)}
+.theory li{margin-bottom:4px}
+.theory code,.hint code,.status code{font-family:var(--font-mono);font-size:.92em;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+</style>
+
+<div class="page">
+  <header class="hd">
+    <div>
+      <div class="eyebrow">Kelistrikan otomotif · SMK Teknik Kendaraan Ringan</div>
+      <h1>Simulasi Wiring Lampu Kota</h1>
+      <p class="lead">Rangkai kabel dari aki sampai ke enam lampu mengikuti diagram wiring, lalu uji dengan saklar I–II dan multimeter.</p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card stage" id="stage" aria-label="Papan simulasi">
+      <div class="tools">
+        <div class="seg" role="group" aria-label="Mode">
+          <button type="button" id="mLearn" aria-pressed="true">Belajar</button>
+          <button type="button" id="mTest" aria-pressed="false">Uji</button>
+        </div>
+        <label class="tog"><input type="checkbox" id="chkGhost" checked> Jalur panduan</label>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="btnUndo">Urungkan</button>
+        <button type="button" class="btn" id="btnDel" disabled>Hapus kabel</button>
+        <button type="button" class="btn danger" id="btnReset">Kosongkan</button>
+        <button type="button" class="btn" id="btnHint">Petunjuk</button>
+        <button type="button" class="btn primary" id="btnCheck">Periksa</button>
+      </div>
+      <div class="tools second">
+        <span class="lbl">Kabel</span>
+        <div id="swatches" style="display:flex;flex-wrap:wrap;gap:6px" role="group" aria-label="Warna kabel"></div>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="btnBat" aria-pressed="false"></button>
+        <button type="button" class="btn" id="btnMM" aria-pressed="false">Multimeter</button>
+      </div>
+      <div class="status info" id="status" role="status" aria-live="polite"><span class="sd"></span><p id="statusTxt"></p><button type="button" class="btn" id="btnCancel" hidden>Batal</button></div>
+      <div class="toast" id="toast" hidden role="status"></div>
+      <div class="boardwrap">
+        <svg id="board" class="board" viewBox="0 0 820 930" role="group" aria-label="Papan wiring sistem lampu kota">
+          <defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path class="gridline" d="M20 0H0V20"/></pattern></defs>
+          <rect width="820" height="930" fill="url(#grid)" opacity=".7"/>
+          <g id="g-static"></g>
+          <g id="g-ghost"></g>
+          <g id="g-comps"></g>
+          <g id="g-wires"></g>
+          <path id="g-prev" class="prev" d="" />
+          <g id="g-terms"></g>
+          <g id="g-badge"></g>
+        </svg>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="card pad" id="checkCard">
+        <h2>Daftar sambungan</h2>
+        <div id="score"></div>
+        <div id="checklist"></div>
+      </section>
+      <section class="card pad">
+        <h2>Multimeter</h2>
+        <p class="hint">Aktifkan, lalu sentuh sebuah terminal. Probe hitam dianggap di massa bodi.</p>
+        <div class="lcd idle" id="lcd"><span class="v" id="lcdV">--,-</span><span class="u">V DC</span></div>
+        <p class="mmcap" id="mmCap">Multimeter belum aktif.</p>
+      </section>
+      <section class="card pad">
+        <h2>Gangguan</h2>
+        <p class="hint">Sisipkan kerusakan, lalu cari penyebabnya dengan multimeter. Rangkai dulu sampai lampu menyala.</p>
+        <div class="fgrid">
+          <button type="button" class="btn" data-fault="fuse">Sekring 1 putus</button>
+          <button type="button" class="btn" data-fault="conn">Konektor lepas</button>
+          <button type="button" class="btn" data-fault="gnd3">Massa L3 putus</button>
+          <button type="button" class="btn" data-fault="feed5">Kabel (+) L5 putus</button>
+        </div>
+        <button type="button" class="btn wide" id="btnFix">Pulihkan semua</button>
+      </section>
+      <details class="card pad">
+        <summary>Alat guru</summary>
+        <p class="hint">Isi semua kabel sesuai kunci untuk demonstrasi di depan kelas.</p>
+        <button type="button" class="btn wide" id="btnFill">Isi semua kabel (kunci jawaban)</button>
+      </details>
+    </aside>
+  </div>
+
+  <section class="theory">
+    <div class="card pad">
+      <h2>Alur arus pada rangkaian</h2>
+      <ol class="flow">
+        <li><span><b>Aki (+)</b> memberi tegangan 12 V ke sekring utama.</span></li>
+        <li><span><b>Sekring utama</b> melindungi seluruh kabel utama dari korsleting.</span></li>
+        <li><span><b>Kotak sekring</b>, sekring 1 (15 A), melindungi jalur lampu kota.</span></li>
+        <li><span><b>Konektor</b> menyambung kabel W/BL ke kabel W menuju saklar.</span></li>
+        <li><span><b>Saklar I–II</b> menghubungkan arus bila berada di posisi I atau II.</span></li>
+        <li><span><b>Terminal bus</b> membagi arus ke enam lampu, lalu arus kembali lewat <b>massa bodi</b> ke aki (−).</span></li>
+      </ol>
+    </div>
+    <div class="card pad">
+      <h2>Catatan keselamatan dan analisis</h2>
+      <ul>
+        <li>Saat merangkai, kabel (−) aki dilepas. Pasang hanya ketika siap menguji.</li>
+        <li>Kabel (+) yang menyentuh massa menyebabkan korsleting. Sekring akan putus, dan sekring utama hanya putus bila korsleting terjadi sebelum kotak sekring.</li>
+        <li>Keenam lampu terhubung paralel pada terminal bus. Lepas satu kabel lampu, lima lainnya tetap menyala.</li>
+        <li>Terminal lampu (−) terbaca sekitar 12 V di multimeter bila kabel massanya putus, karena arus lewat filamen.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+'use strict';
+/*ENGINE_START*/
+const LAMPS=[
+  {i:1,x:237,type:'s',name:'Kota depan kiri'},
+  {i:2,x:315,type:'b',name:'Belakang kiri'},
+  {i:3,x:400,type:'b',name:'Plat nomor'},
+  {i:4,x:486,type:'b',name:'Panel instrumen'},
+  {i:5,x:573,type:'b',name:'Belakang kanan'},
+  {i:6,x:659,type:'s',name:'Kota depan kanan'}
+];
+const GX=[197,275,360,446,533,619];
+const TERM={
+  bat_neg:{x:329,y:152,label:'Aki kutub (−)'},
+  bat_pos:{x:407,y:152,label:'Aki kutub (+)'},
+  gnd0:{x:261,y:180,label:'Massa dekat aki'},
+  mf_in:{x:453,y:131,label:'Sekring utama, sisi aki',hit:11},
+  mf_out:{x:517,y:131,label:'Sekring utama, sisi keluar',hit:11},
+  fb_in:{x:517,y:336,label:'Kotak sekring, masuk',hit:11},
+  fb_out:{x:517,y:408,label:'Kotak sekring, keluar (sekring 1)',hit:11},
+  c_a:{x:517,y:468,label:'Konektor, sisi kotak sekring',hit:10},
+  c_b:{x:517,y:512,label:'Konektor, sisi saklar',hit:10},
+  sw_in:{x:517,y:562,label:'Saklar I–II, masuk',hit:12},
+  sw_out:{x:541,y:610,label:'Saklar I–II, keluar',hit:12},
+  bus0:{x:541,y:657,label:'Terminal bus, masuk',hit:13}
+};
+LAMPS.forEach(L=>{
+  TERM['bus'+L.i]={x:L.x,y:657,label:'Terminal bus L'+L.i,hit:13};
+  TERM['l'+L.i+'p']={x:L.x,y:742,label:'Lampu L'+L.i+' (+)'};
+  TERM['l'+L.i+'n']={x:L.x-(L.type==='s'?7:13),y:(L.type==='s'?756:760),label:'Lampu L'+L.i+' (−)'};
+  TERM['g'+L.i]={x:GX[L.i-1],y:855,label:'Massa L'+L.i};
+});
+const COL={
+  'B':{base:'#1b1b1b',stripe:null,name:'Hitam'},
+  'W':{base:'#f7f7f4',stripe:null,name:'Putih'},
+  'W/Y':{base:'#f7f7f4',stripe:'#f2c200',name:'Putih–Kuning'},
+  'W/BL':{base:'#f7f7f4',stripe:'#2f6fd6',name:'Putih–Biru'},
+  'R/Y':{base:'#d7332b',stripe:'#f2c200',name:'Merah–Kuning'}
+};
+const pairKey=(a,b)=>[a,b].sort().join('|');
+const KEY=[];
+KEY.push({a:'bat_pos',b:'mf_in',color:null,g:0,via:[[407,131]],t:'Kutub (+) aki ke sekring utama'});
+KEY.push({a:'mf_out',b:'fb_in',color:'W/Y',g:0,via:[],t:'Sekring utama ke kotak sekring'});
+KEY.push({a:'fb_out',b:'c_a',color:'W/BL',g:0,via:[],t:'Sekring 1 (15 A) ke konektor'});
+KEY.push({a:'c_b',b:'sw_in',color:'W',g:0,via:[],t:'Konektor ke saklar I–II'});
+KEY.push({a:'sw_out',b:'bus0',color:'R/Y',g:0,via:[],t:'Saklar I–II ke terminal bus'});
+LAMPS.forEach(L=>KEY.push({a:'bus'+L.i,b:'l'+L.i+'p',color:'R/Y',g:1,via:[],t:'Bus ke lampu L'+L.i+' (+)'}));
+LAMPS.forEach(L=>KEY.push({a:'l'+L.i+'n',b:'g'+L.i,color:'B',g:2,via:[[GX[L.i-1],TERM['l'+L.i+'n'].y]],t:'Lampu L'+L.i+' (−) ke massa'}));
+KEY.push({a:'bat_neg',b:'gnd0',color:'B',g:2,via:[[329,130],[261,130]],t:'Kutub (−) aki ke massa'});
+const GROUPS=['Dari aki ke saklar','Dari bus ke lampu','Jalur massa'];
+const KEYMAP={};
+KEY.forEach(k=>{KEYMAP[pairKey(k.a,k.b)]=k;});
+
+function buildAdj(state,exId,over){
+  const o=over||{};
+  const adj=new Map();
+  const add=(a,b)=>{
+    if(!adj.has(a))adj.set(a,[]);
+    if(!adj.has(b))adj.set(b,[]);
+    adj.get(a).push(b);adj.get(b).push(a);
+  };
+  state.wires.forEach(w=>{if(w.id!==exId)add(w.a,w.b);});
+  if(!state.mfBlown&&o.mf!==false)add('mf_in','mf_out');
+  if(!state.fbBlown&&o.fb!==false)add('fb_in','fb_out');
+  if(state.plug)add('c_a','c_b');
+  if(state.sw>0)add('sw_in','sw_out');
+  LAMPS.forEach(L=>{add('bus0','bus'+L.i);add('gnd0','g'+L.i);});
+  return adj;
+}
+function reach(adj,s){
+  const seen=new Set([s]);const q=[s];
+  while(q.length){
+    const n=q.pop();
+    const nb=adj.get(n)||[];
+    for(let i=0;i<nb.length;i++){if(!seen.has(nb[i])){seen.add(nb[i]);q.push(nb[i]);}}
+  }
+  return seen;
+}
+function meets(a,b){for(const n of a){if(b.has(n))return true;}return false;}
+function finish(state,pos,neg,alerts){
+  const lit={};
+  if(state.battery){
+    LAMPS.forEach(L=>{
+      const p='l'+L.i+'p',n='l'+L.i+'n';
+      if(pos.has(p)&&neg.has(n))lit[L.i]={hot:p,cold:n};
+      else if(pos.has(n)&&neg.has(p))lit[L.i]={hot:n,cold:p};
+    });
+  }
+  const flow=new Set();
+  const lamps=Object.keys(lit);
+  if(lamps.length){
+    state.wires.forEach(w=>{
+      const a1=buildAdj(state,w.id);
+      const p1=reach(a1,'bat_pos'),n1=reach(a1,'bat_neg');
+      for(let i=0;i<lamps.length;i++){
+        const l=lit[lamps[i]];
+        if(!p1.has(l.hot)||!n1.has(l.cold)){flow.add(w.id);break;}
+      }
+    });
+  }
+  return {pos,neg,lit,flow,alerts};
+}
+function evaluate(state){
+  const alerts=[];
+  for(let k=0;k<6;k++){
+    const adj=buildAdj(state);
+    const pos=reach(adj,'bat_pos'),neg=reach(adj,'bat_neg');
+    if(!(state.battery&&meets(pos,neg)))return finish(state,pos,neg,alerts);
+    const a2=buildAdj(state,null,{fb:false});
+    if(meets(reach(a2,'bat_pos'),reach(a2,'bat_neg'))){
+      const a3=buildAdj(state,null,{fb:false,mf:false});
+      if(state.mfBlown||meets(reach(a3,'bat_pos'),reach(a3,'bat_neg'))){state.battery=false;alerts.push('dead');}
+      else{state.mfBlown=true;alerts.push('mf');}
+    }else{state.fbBlown=true;alerts.push('fb');}
+  }
+  state.battery=false;
+  const adj=buildAdj(state);
+  return finish(state,reach(adj,'bat_pos'),reach(adj,'bat_neg'),alerts);
+}
+function volt(state,ev,node){
+  if(!state.battery)return 0;
+  if(ev.neg.has(node))return 0;
+  if(ev.pos.has(node))return 12.6;
+  for(let i=0;i<LAMPS.length;i++){
+    const p='l'+LAMPS[i].i+'p',n='l'+LAMPS[i].i+'n';
+    if(ev.pos.has(p)&&node===n)return 12.6;
+    if(ev.pos.has(n)&&node===p)return 12.6;
+  }
+  return 0;
+}
+function check(state){
+  const res=KEY.map(k=>{
+    const pk=pairKey(k.a,k.b);
+    const w=state.wires.find(x=>pairKey(x.a,x.b)===pk);
+    if(!w)return {k,s:'missing'};
+    if(k.color&&w.color!==k.color)return {k,s:'color',w};
+    return {k,s:'ok',w};
+  });
+  const extra=state.wires.filter(w=>!KEYMAP[pairKey(w.a,w.b)]);
+  const ok=res.filter(r=>r.s==='ok').length;
+  const color=res.filter(r=>r.s==='color').length;
+  const missing=res.filter(r=>r.s==='missing').length;
+  const score=Math.max(0,Math.round((ok+color*0.5)/KEY.length*100-extra.length*3));
+  return {res,extra,ok,color,missing,score};
+}
+function nLit(state){return Object.keys(evaluate(state).lit).length;}
+/*ENGINE_END*/
+
+/* ---------- UI ---------- */
+const $=s=>document.querySelector(s);
+const svg=$('#board');
+const G={st:$('#g-static'),ghost:$('#g-ghost'),comps:$('#g-comps'),wires:$('#g-wires'),prev:$('#g-prev'),terms:$('#g-terms'),badge:$('#g-badge')};
+const st={wires:[],nextId:1,battery:false,sw:0,plug:true,mfBlown:false,fbBlown:false,trouble:false,removed:[]};
+const ui={mode:'learn',ghost:true,color:'W/Y',pending:null,sel:null,mm:false,probe:null,hint:null,checked:false,ptr:null,hist:[],ev:null,ht:null,tt:null,rt:null};
+const STORE='wiring-lampu-kota-v1';
+
+function sample(code,x1,y,x2){
+  const c=COL[code];
+  let s='<line class="w-edge" x1="'+x1+'" y1="'+y+'" x2="'+x2+'" y2="'+y+'"/>';
+  s+='<line x1="'+x1+'" y1="'+y+'" x2="'+x2+'" y2="'+y+'" stroke="'+c.base+'" stroke-width="4.4" stroke-linecap="round"/>';
+  if(c.stripe)s+='<line x1="'+x1+'" y1="'+y+'" x2="'+x2+'" y2="'+y+'" stroke="'+c.stripe+'" stroke-width="2.4" stroke-dasharray="7 6"/>';
+  return s;
+}
+function gsym(x,y){return '<path class="ln" d="M'+x+' '+y+'v10M'+(x-12)+' '+(y+10)+'h24M'+(x-8)+' '+(y+15)+'h16M'+(x-4)+' '+(y+20)+'h8"/>';}
+function dedupe(p){const o=[];p.forEach(q=>{const l=o[o.length-1];if(!l||l[0]!==q[0]||l[1]!==q[1])o.push(q);});return o;}
+function pathD(pts,r){
+  r=r||7;
+  const p=dedupe(pts);
+  let d='M'+p[0][0]+' '+p[0][1];
+  for(let i=1;i<p.length-1;i++){
+    const a=p[i-1],b=p[i],c=p[i+1];
+    const l1=Math.hypot(b[0]-a[0],b[1]-a[1]),l2=Math.hypot(c[0]-b[0],c[1]-b[1]);
+    const rr=Math.min(r,l1/2,l2/2);
+    const p1=[b[0]-(b[0]-a[0])/l1*rr,b[1]-(b[1]-a[1])/l1*rr];
+    const p2=[b[0]+(c[0]-b[0])/l2*rr,b[1]+(c[1]-b[1])/l2*rr];
+    d+=' L'+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+' Q'+b[0]+' '+b[1]+' '+p2[0].toFixed(1)+' '+p2[1].toFixed(1);
+  }
+  const e=p[p.length-1];
+  return d+' L'+e[0]+' '+e[1];
+}
+function fallbackVia(A,B){
+  if(A.x===B.x||A.y===B.y)return [];
+  const my=Math.round((A.y+B.y)/2);
+  return [[A.x,my],[B.x,my]];
+}
+function ptsFor(w){
+  const A=TERM[w.a],B=TERM[w.b];
+  const k=KEYMAP[pairKey(w.a,w.b)];
+  let via;
+  if(k)via=(k.a===w.a)?k.via:k.via.slice().reverse();
+  else via=fallbackVia(A,B);
+  return [[A.x,A.y]].concat(via,[[B.x,B.y]]);
+}
+function labelPos(p){
+  p=dedupe(p);
+  let best=0,pos=null;
+  for(let i=0;i<p.length-1;i++){
+    const l=Math.hypot(p[i+1][0]-p[i][0],p[i+1][1]-p[i][1]);
+    if(l>best){best=l;pos=[(p[i][0]+p[i+1][0])/2,(p[i][1]+p[i+1][1])/2];}
+  }
+  return best>=36?pos:null;
+}
+function chip(p,text){
+  const pos=labelPos(p);
+  if(!pos)return '';
+  const w=text.length*6.3+10;
+  return '<g class="chip"><rect x="'+(pos[0]-w/2).toFixed(1)+'" y="'+(pos[1]-8)+'" width="'+w.toFixed(1)+'" height="16" rx="4"/><text x="'+pos[0].toFixed(1)+'" y="'+pos[1]+'">'+text+'</text></g>';
+}
+
+/* static layer */
+function buildStatic(){
+  let s='';
+  s+='<text class="ttl" x="24" y="42">I. Sistem Lampu Kota</text>';
+  s+='<text class="t2" x="24" y="72" style="letter-spacing:.08em">KODE WARNA KABEL</text>';
+  Object.keys(COL).forEach((code,i)=>{
+    const y=92+i*20;
+    s+=sample(code,26,y,62)+'<text class="t tb" x="72" y="'+(y+3)+'">'+code+'</text><text class="t2" x="112" y="'+(y+3)+'">'+COL[code].name+'</text>';
+  });
+  /* battery */
+  s+='<rect class="body" x="305" y="165" width="125" height="72" rx="4"/>';
+  s+='<rect class="body" x="320" y="153" width="18" height="12"/><rect class="body" x="398" y="153" width="18" height="12"/>';
+  s+='<circle class="ln" cx="329" cy="186" r="9"/><path class="ln" d="M324 186h10"/>';
+  s+='<circle class="ln" cx="407" cy="186" r="9"/><path class="ln" d="M402 186h10M407 181v10"/>';
+  s+='<text class="t2" x="367" y="226" text-anchor="middle">AKI 12 V</text>';
+  s+=gsym(261,180)+'<text class="t2" x="261" y="214" text-anchor="middle">massa</text>';
+  /* fuse list */
+  s+='<rect class="body" x="110" y="357" width="226" height="71" rx="2" style="fill:var(--panel)"/>';
+  s+='<path class="ln" d="M223 357V428M110 380H336M110 404H336" style="stroke-width:1"/>';
+  const F=[['H/L L','TAIL'],['H/L R','STOP'],['HAZARD','HORN'],['ACC',''],['IG COIL','ACG'],['WIPER','TURN']];
+  F.forEach((f,i)=>{
+    const cx=114+(i>2?113:0),cy=369+(i%3)*24;
+    s+='<circle class="ln" cx="'+(cx+9)+'" cy="'+cy+'" r="8"'+(i===0?' style="fill:var(--accent);stroke:var(--accent)"':'')+'/>';
+    s+='<text class="t tb" x="'+(cx+9)+'" y="'+(cy+3.5)+'" text-anchor="middle"'+(i===0?' style="fill:var(--accent-ink)"':'')+'>'+(i+1)+'</text>';
+    s+='<text class="t2" x="'+(cx+22)+'" y="'+(cy+3)+'">15 A</text>';
+    s+='<text class="t2" x="'+(cx+50)+'" y="'+(cy+3)+'">'+[f[0],f[1]].filter(Boolean).join('·')+'</text>';
+  });
+  /* callout */
+  s+='<rect class="body" x="367" y="357" width="105" height="73" rx="10" style="fill:var(--panel)"/>';
+  s+='<path class="ln" d="M472 388L492 380L472 372" style="fill:var(--panel)"/>';
+  s+='<rect x="378" y="369" width="42" height="16" style="fill:var(--accent);fill-opacity:.85"/>';
+  s+='<path class="ln" d="M378 369H462V418H378ZM420 369V418M378 385H462M378 401H462" style="stroke-width:1"/>';
+  s+='<text class="t2" x="419" y="446" text-anchor="middle">kotak sekring</text>';
+  /* bus */
+  s+='<line class="bus" x1="225" y1="657" x2="671" y2="657"/>';
+  s+='<text class="t2" x="225" y="643">TERMINAL BUS (sambungan bersama)</text>';
+  /* lamp labels + grounds */
+  LAMPS.forEach(L=>{
+    s+=gsym(GX[L.i-1],855);
+    s+='<text class="t tb" x="'+L.x+'" y="897" text-anchor="middle">L'+L.i+'</text>';
+    s+='<text class="t2" x="'+L.x+'" y="910" text-anchor="middle">'+L.name+'</text>';
+  });
+  return s;
+}
+
+/* dynamic components */
+function lampSvg(L,lit){
+  const x=L.x;
+  let s='<g class="lamp'+(lit?' on':'')+'"><title>L'+L.i+' · '+L.name+(lit?' (menyala)':' (mati)')+'</title>';
+  if(L.type==='s'){
+    if(lit)s+='<circle class="halo" cx="'+x+'" cy="785" r="38"/>';
+    s+='<rect class="body" x="'+(x-7)+'" y="745" width="14" height="16" rx="2"/>';
+    s+='<ellipse class="bulb" cx="'+x+'" cy="785" rx="14" ry="21"/>';
+    s+='<path class="fil" d="M'+(x-4)+' 796v-8a4 4 0 0 1 8 0v8"/>';
+  }else{
+    if(lit)s+='<circle class="halo" cx="'+x+'" cy="802" r="56"/>';
+    s+='<rect class="body" x="'+(x-13)+'" y="745" width="26" height="28" rx="3"/>';
+    s+='<circle class="bulb" cx="'+x+'" cy="802" r="27"/>';
+    s+='<path class="fil" d="M'+(x-6)+' 813v-12a6 6 0 0 1 12 0v12"/>';
+  }
+  return s+'</g>';
+}
+function buildComps(ev){
+  let s='';
+  /* main fuse */
+  s+='<rect class="dash" x="445" y="118" width="80" height="26" rx="3"/>';
+  s+='<text class="t2" x="485" y="110" text-anchor="middle">sekring utama</text>';
+  if(st.mfBlown){
+    s+='<path class="el bad" d="M453 131H462q6 -12 12 0t6 0M500 131H517"/><text class="tagbad" x="485" y="156" text-anchor="middle">PUTUS</text>';
+  }else{
+    s+='<path class="el" d="M453 131H462q6 -12 12 0t12 0t12 0t12 0H517"/>';
+  }
+  s+='<rect class="click" data-act="mf" tabindex="0" role="button" aria-label="Sekring utama: klik untuk melepas atau memasang" x="445" y="118" width="80" height="26"><title>Sekring utama (klik: lepas / pasang)</title></rect>';
+  /* fuse box */
+  s+='<rect class="dash" x="501" y="332" width="32" height="80" rx="3"/>';
+  if(st.fbBlown){
+    s+='<path class="el bad" d="M517 336V345q-12 6 0 12t0 5M517 392V408"/><text class="tagbad" x="543" y="400">PUTUS</text>';
+  }else{
+    s+='<path class="el" d="M517 336V345q-12 6 0 12t0 12t0 12t0 12V408"/>';
+  }
+  s+='<text class="t tb" x="543" y="366">SEKRING 1</text><text class="t2" x="543" y="379">15 A · H/L L · TAIL</text>';
+  s+='<rect class="click" data-act="fb" tabindex="0" role="button" aria-label="Sekring 1: klik untuk melepas atau memasang" x="501" y="332" width="32" height="80"><title>Sekring 1, 15 A (klik: lepas / pasang)</title></rect>';
+  /* connector */
+  const off=!st.plug;
+  const ty=off?476:482,by=off?496:490;
+  s+='<path class="ln" d="M517 468V'+ty+'M517 '+(by+8)+'V512"/>';
+  s+='<rect class="conn'+(off?' off':'')+'" x="509" y="'+ty+'" width="16" height="8" rx="2"/><rect class="conn'+(off?' off':'')+'" x="509" y="'+by+'" width="16" height="8" rx="2"/>';
+  s+='<text class="t2" x="546" y="488">konektor</text><text class="'+(off?'tagbad':'t2')+'" x="546" y="500">'+(off?'LEPAS':'klik: lepas/pasang')+'</text>';
+  s+='<rect class="click" data-act="conn" tabindex="0" role="button" aria-label="Konektor: klik untuk melepas atau memasang" x="499" y="473" width="36" height="34"><title>Konektor (klik: lepas / pasang)</title></rect>';
+  /* switch */
+  s+='<text class="t2" x="432" y="585" text-anchor="end">SAKLAR</text><text class="t tb" x="432" y="598" text-anchor="end">I – II</text>';
+  s+='<path class="ln" d="M517 562V570M541 606V610"/>';
+  s+='<rect class="segbox" x="440" y="570" width="130" height="36" rx="5"/>';
+  ['OFF','I','II'].forEach((lb,i)=>{
+    const x=446+i*40;
+    if(st.sw===i)s+='<rect class="segon" x="'+x+'" y="575" width="38" height="26" rx="4"/>';
+    s+='<text class="segtxt'+(st.sw===i?' on':'')+'" x="'+(x+19)+'" y="592">'+lb+'</text>';
+    s+='<rect class="click" data-act="sw'+i+'" tabindex="0" role="button" aria-label="Saklar posisi '+lb+'" x="'+x+'" y="575" width="38" height="26" rx="4"><title>Saklar posisi '+lb+'</title></rect>';
+  });
+  LAMPS.forEach(L=>{s+=lampSvg(L,!!ev.lit[L.i]);});
+  return s;
+}
+
+function wireSvg(w,flow,sel){
+  const c=COL[w.color];
+  const p=ptsFor(w);
+  const d=pathD(p);
+  let s='<g class="wire" data-wid="'+w.id+'"><title>Kabel '+w.color+': '+TERM[w.a].label+' ke '+TERM[w.b].label+'</title>';
+  s+='<path class="w-hit" d="'+d+'"/>';
+  if(sel)s+='<path class="w-halo" d="'+d+'"/>';
+  s+='<path class="w-edge" d="'+d+'"/>';
+  s+='<path d="'+d+'" fill="none" stroke="'+c.base+'" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>';
+  if(c.stripe)s+='<path d="'+d+'" fill="none" stroke="'+c.stripe+'" stroke-width="2.4" stroke-dasharray="7 6" stroke-linejoin="round"/>';
+  if(flow)s+='<path class="w-flow" d="'+d+'"/>';
+  s+=chip(p,w.color);
+  return s+'</g>';
+}
+function renderGhost(){
+  let s='';
+  if(ui.mode==='learn'&&ui.ghost&&!st.trouble){
+    KEY.forEach((k,i)=>{
+      const pk=pairKey(k.a,k.b);
+      if(st.wires.some(w=>pairKey(w.a,w.b)===pk))return;
+      const A=TERM[k.a],B=TERM[k.b];
+      const p=[[A.x,A.y]].concat(k.via,[[B.x,B.y]]);
+      s+='<g class="ghost'+(ui.hint===i?' hot':'')+'"><path d="'+pathD(p)+'"/>'+chip(p,k.color||'bebas')+'</g>';
+    });
+  }
+  G.ghost.innerHTML=s;
+}
+function renderWires(ev){
+  G.wires.innerHTML=st.wires.map(w=>wireSvg(w,ev.flow.has(w.id),ui.sel===w.id)).join('');
+}
+function renderTerms(){
+  const used=new Set();
+  st.wires.forEach(w=>{used.add(w.a);used.add(w.b);});
+  const hot=new Set();
+  if(ui.hint!=null&&KEY[ui.hint]){hot.add(KEY[ui.hint].a);hot.add(KEY[ui.hint].b);}
+  let s='';
+  Object.keys(TERM).forEach(id=>{
+    const t=TERM[id];
+    const cls='term'+(used.has(id)?' used':'')+(ui.pending===id?' pending':'')+(hot.has(id)?' hint':'');
+    s+='<g class="'+cls+'" data-term="'+id+'" tabindex="0" role="button" aria-label="'+t.label+'" transform="translate('+t.x+' '+t.y+')">';
+    s+='<circle class="hit" r="'+(t.hit||16)+'"/><circle class="ring" r="11"/><circle class="dot" r="5.5"/><title>'+t.label+'</title></g>';
+  });
+  G.terms.innerHTML=s;
+}
+function renderBadge(ev){
+  let s='';
+  if(ui.mm&&ui.probe){
+    const t=TERM[ui.probe];
+    const v=volt(st,ev,ui.probe).toFixed(1).replace('.',',');
+    const bx=Math.min(t.x+12,760),by=Math.max(t.y-20,12);
+    s='<g class="badge"><rect x="'+bx+'" y="'+(by-11)+'" width="64" height="22" rx="4"/><text x="'+(bx+32)+'" y="'+by+'">'+v+' V</text></g>';
+  }
+  G.badge.innerHTML=s;
+}
+
+/* status text */
+function say(k,t){return {k:k,t:t};}
+function statusMsg(ev){
+  const nl=Object.keys(ev.lit).length;
+  if(ui.pending){
+    return say('info','Menyambung dari <b>'+TERM[ui.pending].label+'</b> dengan kabel <code>'+ui.color+'</code>. Pilih terminal tujuan.');
+  }
+  if(ui.mm)return say('info','Multimeter aktif. Sentuh terminal untuk membaca tegangan. Nonaktifkan untuk kembali menyambung kabel.');
+  if(st.trouble){
+    if(nl===6)return say('ok','Semua lampu menyala kembali.');
+    if(!st.battery)return say('info','Pasang kabel (−) aki untuk memulai pelacakan gangguan.');
+    if(st.sw===0)return say('info','Putar saklar ke posisi I, lalu lacak gangguan dengan multimeter.');
+    return say('warn','Gangguan aktif: '+(6-nl)+' lampu tidak menyala. Lacak titik tegangan dengan multimeter, dari aki sampai lampu.');
+  }
+  if(st.mfBlown||st.fbBlown){
+    return say('bad',(st.fbBlown?'Sekring 1 (15 A)':'Sekring utama')+' putus. Cari kabel (+) yang menyentuh massa, perbaiki, lalu klik sekring pada gambar untuk memasang yang baru.');
+  }
+  if(!st.wires.length)return say('info','Mulai dari kutub (+) aki: pilih warna kabel, klik terminal pertama, lalu terminal kedua. Terminal juga bisa ditarik langsung.');
+  if(!st.battery){
+    const c=check(st);
+    return say('info','Aki masih dilepas, aman untuk merangkai. '+(c.missing===0&&c.color===0?'Rangkaian lengkap, pasang kabel (−) aki lalu putar saklar ke I.':'Setelah selesai, pasang kabel (−) aki untuk menguji.'));
+  }
+  if(ui.mode==='test'&&nl<6)return say('info','Mode uji: '+nl+' dari 6 lampu menyala. Tekan Periksa untuk menilai rangkaian.');
+  if(nl===6)return say('ok','Keenam lampu menyala. Coba posisi saklar OFF, I, dan II, atau lepas satu kabel lampu untuk melihat sifat paralel.');
+  const issues=[];
+  if(st.sw===0)issues.push('saklar masih OFF');
+  if(!st.plug)issues.push('konektor terlepas');
+  if(issues.length)return say('warn','Lampu belum menyala: '+issues.join(' dan ')+'.');
+  const noFeed=[],noGnd=[];
+  LAMPS.forEach(L=>{
+    if(ev.lit[L.i])return;
+    const p='l'+L.i+'p',n='l'+L.i+'n';
+    if(ev.pos.has(p)||ev.pos.has(n))noGnd.push('L'+L.i);else noFeed.push('L'+L.i);
+  });
+  const parts=[];
+  if(noFeed.length)parts.push(noFeed.join(', ')+': arus (+) belum sampai. Periksa jalur dari aki, sekring, konektor, saklar, dan bus.');
+  if(noGnd.length)parts.push(noGnd.join(', ')+': sudah dapat (+) tetapi massanya belum tersambung.');
+  return say('warn',nl+' dari 6 lampu menyala. '+parts.join(' '));
+}
+
+/* panels */
+function renderChecklist(){
+  const c=check(st);
+  const live=(ui.mode==='learn'&&!st.trouble)||ui.checked;
+  let sc='';
+  if(ui.checked){
+    const cls=c.score>=90?'good':(c.score>=60?'mid':'low');
+    sc='<div class="score '+cls+'"><b>'+c.score+'</b> <span>/ 100</span><p>'+c.ok+' benar, '+c.color+' salah warna, '+c.missing+' belum dipasang, '+c.extra.length+' kabel berlebih.</p></div>';
+  }
+  $('#score').innerHTML=sc;
+  let h='';
+  if(live){
+    h+='<div class="prog"><span class="num">'+c.ok+'</span><span>dari '+KEY.length+' sambungan benar</span></div>';
+    GROUPS.forEach((g,gi)=>{
+      h+='<div class="gh">'+g+'</div><ul class="cl">';
+      c.res.forEach((r,i)=>{
+        if(r.k.g!==gi)return;
+        const mk=r.s==='ok'?'✓':(r.s==='color'?'!':'');
+        h+='<li><button type="button" class="ci s-'+r.s+'" data-k="'+i+'"><span class="mk">'+mk+'</span><span>'+r.k.t+(r.s==='color'?'<span class="xt">Terpasang '+r.w.color+', seharusnya '+r.k.color+'</span>':'')+'</span><span class="cc">'+(r.k.color||'bebas')+'</span></button></li>';
+      });
+      h+='</ul>';
+    });
+    if(c.extra.length){
+      h+='<p class="extra">Kabel berlebih (tidak ada pada gambar): '+c.extra.map(w=>TERM[w.a].label+' – '+TERM[w.b].label).join('; ')+'.</p>';
+    }
+  }else{
+    h+='<div class="prog"><span class="num">'+st.wires.length+'</span><span>kabel terpasang</span></div>';
+    h+='<p class="hint">Daftar sambungan disembunyikan pada mode uji dan saat ada gangguan. Tekan Periksa untuk melihat hasil.</p>';
+  }
+  $('#checklist').innerHTML=h;
+}
+function renderPanels(ev){
+  const m=statusMsg(ev);
+  const el=$('#status');
+  el.className='status '+m.k;
+  $('#statusTxt').innerHTML=m.t;
+  $('#btnCancel').hidden=!ui.pending;
+  $('#mLearn').setAttribute('aria-pressed',ui.mode==='learn');
+  $('#mTest').setAttribute('aria-pressed',ui.mode==='test');
+  $('#chkGhost').checked=ui.ghost;
+  $('#chkGhost').disabled=ui.mode==='test';
+  $('#btnHint').disabled=ui.mode==='test';
+  $('#btnDel').disabled=ui.sel==null;
+  $('#btnUndo').disabled=!ui.hist.length;
+  document.querySelectorAll('#swatches .sw').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===ui.color));
+  const bb=$('#btnBat');
+  bb.setAttribute('aria-pressed',st.battery);
+  bb.className='btn'+(st.battery?' on':'');
+  bb.textContent=st.battery?'Aki terpasang (klik: lepas)':'Aki dilepas (klik: pasang)';
+  const mb=$('#btnMM');
+  mb.setAttribute('aria-pressed',ui.mm);
+  mb.className='btn'+(ui.mm?' on':'');
+  $('#stage').classList.toggle('mm',ui.mm);
+  const lcd=$('#lcd');
+  if(ui.mm&&ui.probe){
+    lcd.classList.remove('idle');
+    $('#lcdV').textContent=volt(st,ev,ui.probe).toFixed(1).replace('.',',');
+    $('#mmCap').textContent='Titik ukur: '+TERM[ui.probe].label+(st.battery?'':'. Aki masih dilepas, semua titik terbaca 0 V.');
+  }else{
+    lcd.classList.add('idle');
+    $('#lcdV').textContent='--,-';
+    $('#mmCap').textContent=ui.mm?'Sentuh sebuah terminal pada papan.':'Multimeter belum aktif.';
+  }
+  renderChecklist();
+}
+
+function toast(msg,kind,ms){
+  const t=$('#toast');
+  t.textContent=msg;
+  t.className='toast '+(kind||'');
+  t.hidden=false;
+  clearTimeout(ui.tt);
+  ui.tt=setTimeout(()=>{t.hidden=true;},ms||3200);
+}
+function save(){
+  try{localStorage.setItem(STORE,JSON.stringify({wires:st.wires,next:st.nextId,mode:ui.mode,ghost:ui.ghost,color:ui.color}));}catch(e){}
+}
+function load(){
+  try{
+    const d=JSON.parse(localStorage.getItem(STORE)||'null');
+    if(!d)return;
+    if(Array.isArray(d.wires)){
+      st.wires=d.wires.filter(w=>w&&TERM[w.a]&&TERM[w.b]&&w.a!==w.b&&COL[w.color]).map(w=>({id:w.id|0,a:w.a,b:w.b,color:w.color}));
+      st.nextId=Math.max(d.next|0,1,...st.wires.map(w=>w.id+1));
+    }
+    if(d.mode==='test')ui.mode='test';
+    if(d.ghost===false)ui.ghost=false;
+    if(COL[d.color])ui.color=d.color;
+  }catch(e){}
+}
+
+function render(){
+  const ev=evaluate(st);
+  ui.ev=ev;
+  const nl=Object.keys(ev.lit).length;
+  ev.alerts.forEach(a=>{
+    if(a==='fb')toast('Korsleting! Sekring 1 (15 A) putus.','bad',4500);
+    else if(a==='mf')toast('Korsleting! Sekring utama putus.','bad',4500);
+    else if(a==='dead')toast('Korsleting langsung di aki, tidak terlindungi sekring. Kabel (−) aki dilepas otomatis.','bad',5500);
+  });
+  if(st.trouble&&nl===6&&!st.fbBlown&&!st.mfBlown&&st.plug){
+    st.trouble=false;st.removed=[];
+    toast('Gangguan teratasi. Semua lampu menyala.','ok',4000);
+  }
+  renderGhost();
+  G.comps.innerHTML=buildComps(ev);
+  renderWires(ev);
+  renderTerms();
+  renderBadge(ev);
+  renderPreview();
+  renderPanels(ev);
+  save();
+}
+
+/* wires */
+function pushHist(){ui.hist.push(JSON.stringify(st.wires));if(ui.hist.length>60)ui.hist.shift();}
+function addWire(a,b){
+  if(a===b)return;
+  const pk=pairKey(a,b);
+  const ex=st.wires.find(w=>pairKey(w.a,w.b)===pk);
+  const k=KEYMAP[pk];
+  if(ex){
+    if(ex.color===ui.color){toast('Kedua terminal sudah tersambung dengan kabel '+ui.color+'.');return;}
+    pushHist();ex.color=ui.color;
+  }else{
+    pushHist();
+    st.wires.push({id:st.nextId++,a:a,b:b,color:ui.color});
+  }
+  ui.checked=false;
+  if(ui.mode==='learn'){
+    if(!k)toast('Sambungan ini tidak ada pada diagram wiring.','warn');
+    else if(k.color&&k.color!==ui.color)toast('Sambungan benar, tetapi kode warna seharusnya '+k.color+'.','warn');
+    else toast('Sambungan benar.','ok',1800);
+  }else toast('Kabel terpasang.',null,1500);
+  render();
+}
+function delSel(){
+  if(ui.sel==null)return;
+  pushHist();
+  st.wires=st.wires.filter(w=>w.id!==ui.sel);
+  ui.sel=null;ui.checked=false;render();
+}
+function undo(){
+  if(!ui.hist.length)return;
+  st.wires=JSON.parse(ui.hist.pop());
+  ui.sel=null;ui.checked=false;render();
+}
+function fillKey(){
+  pushHist();
+  st.wires=[];
+  KEY.forEach(k=>{st.wires.push({id:st.nextId++,a:k.a,b:k.b,color:k.color||'W/Y'});});
+  ui.checked=false;ui.sel=null;render();
+}
+
+/* pointer interaction */
+function toSvg(cx,cy){
+  const pt=svg.createSVGPoint();pt.x=cx;pt.y=cy;
+  const m=svg.getScreenCTM();
+  return m?pt.matrixTransform(m.inverse()):{x:0,y:0};
+}
+function renderPreview(){
+  const from=ui.drag?ui.drag.id:ui.pending;
+  const prev=G.prev;
+  if(!from||!ui.ptr){prev.setAttribute('d','');return;}
+  const A=TERM[from];
+  prev.setAttribute('d','M'+A.x+' '+A.y+' L'+ui.ptr.x.toFixed(1)+' '+ui.ptr.y.toFixed(1));
+  prev.setAttribute('stroke','var(--accent)');
+}
+function probe(id){
+  ui.probe=id;render();
+}
+function onTerm(startId,endId,moved){
+  if(ui.mm){ui.pending=null;probe(startId);return;}
+  if(moved&&endId&&endId!==startId){addWire(startId,endId);ui.pending=null;ui.ptr=null;render();return;}
+  if(moved&&!endId){ui.pending=startId;render();return;}
+  if(ui.pending==null)ui.pending=startId;
+  else if(ui.pending===startId){ui.pending=null;ui.ptr=null;}
+  else{const a=ui.pending;ui.pending=null;ui.ptr=null;addWire(a,startId);return;}
+  render();
+}
+svg.addEventListener('pointerdown',e=>{
+  const t=e.target.closest('[data-term]');
+  if(!t)return;
+  ui.drag={id:t.dataset.term,x:e.clientX,y:e.clientY,moved:false};
+});
+window.addEventListener('pointermove',e=>{
+  if(!ui.drag&&!ui.pending)return;
+  if(ui.drag&&Math.hypot(e.clientX-ui.drag.x,e.clientY-ui.drag.y)>8)ui.drag.moved=true;
+  if(ui.mm)return;
+  if((ui.drag&&ui.drag.moved)||ui.pending){ui.ptr=toSvg(e.clientX,e.clientY);renderPreview();}
+});
+window.addEventListener('pointerup',e=>{
+  if(!ui.drag)return;
+  const d=ui.drag;ui.drag=null;
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  const t=el&&el.closest?el.closest('[data-term]'):null;
+  onTerm(d.id,t?t.dataset.term:null,d.moved);
+});
+window.addEventListener('pointercancel',()=>{ui.drag=null;renderPreview();});
+
+function doAct(act){
+  if(act==='mf'){
+    st.mfBlown=!st.mfBlown;
+    toast(st.mfBlown?'Sekring utama dilepas. Rangkaian terbuka.':'Sekring utama terpasang.',st.mfBlown?'warn':'ok');
+  }else if(act==='fb'){
+    st.fbBlown=!st.fbBlown;
+    toast(st.fbBlown?'Sekring 1 dilepas. Rangkaian terbuka.':'Sekring 1 terpasang.',st.fbBlown?'warn':'ok');
+  }else if(act==='conn'){
+    st.plug=!st.plug;
+    toast(st.plug?'Konektor tersambung.':'Konektor dilepas.',st.plug?'ok':'warn');
+  }else if(act.indexOf('sw')===0){
+    st.sw=+act.slice(2);
+  }
+  render();
+}
+svg.addEventListener('click',e=>{
+  const a=e.target.closest('[data-act]');
+  if(a){doAct(a.dataset.act);return;}
+  const w=e.target.closest('.wire');
+  if(w){const id=+w.dataset.wid;ui.sel=(ui.sel===id)?null:id;render();return;}
+  if(!e.target.closest('[data-term]')&&ui.sel!=null){ui.sel=null;render();}
+});
+svg.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const a=e.target.closest&&e.target.closest('[data-act]');
+  if(a){e.preventDefault();doAct(a.dataset.act);return;}
+  const t=e.target.closest&&e.target.closest('[data-term]');
+  if(t){e.preventDefault();onTerm(t.dataset.term,null,false);}
+});
+window.addEventListener('keydown',e=>{
+  const tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea')return;
+  if((e.key==='Delete'||e.key==='Backspace')&&ui.sel!=null){e.preventDefault();delSel();}
+  else if(e.key==='Escape'){ui.pending=null;ui.sel=null;ui.ptr=null;render();}
+  else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();}
+});
+
+/* controls */
+(function(){
+  let s='';
+  Object.keys(COL).forEach(code=>{
+    s+='<button type="button" class="sw" data-c="'+code+'" aria-pressed="false" aria-label="'+code+' '+COL[code].name+'" title="'+COL[code].name+'"><svg width="34" height="12" viewBox="0 0 34 12" aria-hidden="true">'+sample(code,4,6,30)+'</svg><span>'+code+'</span><span class="nm">'+COL[code].name+'</span></button>';
+  });
+  $('#swatches').innerHTML=s;
+})();
+$('#swatches').addEventListener('click',e=>{
+  const b=e.target.closest('.sw');
+  if(!b)return;
+  ui.color=b.dataset.c;
+  if(ui.sel!=null){
+    const w=st.wires.find(x=>x.id===ui.sel);
+    if(w&&w.color!==ui.color){pushHist();w.color=ui.color;ui.checked=false;}
+  }
+  render();
+});
+$('#mLearn').onclick=()=>{ui.mode='learn';ui.checked=false;render();};
+$('#mTest').onclick=()=>{ui.mode='test';ui.checked=false;ui.hint=null;render();};
+$('#chkGhost').onchange=e=>{ui.ghost=e.target.checked;render();};
+$('#btnUndo').onclick=undo;
+$('#btnDel').onclick=delSel;
+$('#btnCancel').onclick=()=>{ui.pending=null;ui.ptr=null;render();};
+let resetArmed=false;
+$('#btnReset').onclick=()=>{
+  const b=$('#btnReset');
+  if(!st.wires.length){toast('Papan sudah kosong.');return;}
+  if(!resetArmed){
+    resetArmed=true;b.textContent='Yakin? Klik lagi';
+    clearTimeout(ui.rt);ui.rt=setTimeout(()=>{resetArmed=false;b.textContent='Kosongkan';},3000);
+    return;
+  }
+  resetArmed=false;b.textContent='Kosongkan';clearTimeout(ui.rt);
+  pushHist();st.wires=[];st.removed=[];ui.sel=null;ui.checked=false;ui.pending=null;
+  st.mfBlown=false;st.fbBlown=false;st.plug=true;st.trouble=false;
+  render();
+};
+$('#btnHint').onclick=()=>{
+  const c=check(st);
+  const i=c.res.findIndex(r=>r.s!=='ok');
+  if(i<0){toast('Semua sambungan sudah benar.','ok');return;}
+  const k=KEY[i];
+  ui.hint=i;
+  if(k.color)ui.color=k.color;
+  clearTimeout(ui.ht);ui.ht=setTimeout(()=>{ui.hint=null;render();},7000);
+  toast('Sambungkan '+TERM[k.a].label+' ke '+TERM[k.b].label+' dengan kabel '+(k.color||'warna bebas')+'.',null,6000);
+  render();
+};
+$('#btnCheck').onclick=()=>{
+  ui.checked=true;
+  render();
+  const c=check(st);
+  if(c.score>=100)toast('Sempurna. Semua sambungan benar.','ok',4000);
+  else toast('Skor '+c.score+' dari 100.',c.score>=60?'warn':'bad',3500);
+};
+$('#btnBat').onclick=()=>{
+  st.battery=!st.battery;
+  toast(st.battery?'Kabel (−) aki dipasang.':'Kabel (−) aki dilepas.',st.battery?'warn':'ok',1800);
+  render();
+};
+$('#btnMM').onclick=()=>{ui.mm=!ui.mm;ui.pending=null;ui.ptr=null;if(!ui.mm)ui.probe=null;render();};
+$('#btnFill').onclick=fillKey;
+$('#checklist').addEventListener('click',e=>{
+  const b=e.target.closest('.ci');
+  if(!b||ui.mode!=='learn')return;
+  ui.hint=+b.dataset.k;
+  clearTimeout(ui.ht);ui.ht=setTimeout(()=>{ui.hint=null;render();},6000);
+  render();
+});
+const FAULT={
+  fuse:()=>{st.fbBlown=true;return true;},
+  conn:()=>{st.plug=false;return true;},
+  gnd3:()=>rmWire('l3n','g3'),
+  feed5:()=>rmWire('bus5','l5p')
+};
+function rmWire(a,b){
+  const pk=pairKey(a,b);
+  const w=st.wires.find(x=>pairKey(x.a,x.b)===pk);
+  if(!w){toast('Kabel itu belum dipasang. Rangkai dulu sampai lampu menyala.','warn');return false;}
+  st.removed.push(w);
+  st.wires=st.wires.filter(x=>x!==w);
+  return true;
+}
+document.querySelectorAll('[data-fault]').forEach(b=>{
+  b.onclick=()=>{
+    if(Object.keys(ui.ev.lit).length<6&&!st.trouble){toast('Rangkai dulu sampai keenam lampu menyala.','warn');return;}
+    if(FAULT[b.dataset.fault]()){
+      st.trouble=true;ui.checked=false;ui.sel=null;
+      toast('Gangguan disisipkan. Temukan penyebabnya.','warn');
+      render();
+    }
+  };
+});
+$('#btnFix').onclick=()=>{
+  st.fbBlown=false;st.mfBlown=false;st.plug=true;st.trouble=false;
+  st.removed.forEach(w=>{if(!st.wires.some(x=>pairKey(x.a,x.b)===pairKey(w.a,w.b)))st.wires.push(w);});
+  st.removed=[];
+  toast('Semua gangguan dipulihkan.','ok');
+  render();
+};
+
+G.st.innerHTML=buildStatic();
+load();
+render();
+})();
+</script>
+
+</body></html>
